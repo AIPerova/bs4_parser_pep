@@ -15,42 +15,45 @@ from utils import get_response, find_tag
 
 def pep(session):
     """Парсинг документации PEP."""
-    response = get_response(session, PEP_URL)
-    if response is None:
-        return
+    try:
+        response = get_response(session, PEP_URL)
+    except ConnectionError as err:
+        return f'Ошибка при загрузке страницы {PEP_URL}, {err}'
     soup = BeautifulSoup(response.text, 'lxml')
     main_table = find_tag(soup, 'section', attrs={'id': 'numerical-index'})
     peps = main_table.find_all('tr')
     statuses = defaultdict(int)
-    for item in tqdm(peps[1:]):
-        status_main_page = find_tag(item, 'abbr').text[1:]
-        pep = find_tag(item, 'a')['href']
-        response = get_response(session, urljoin(PEP_URL, pep))
-        if response is None:
-            return
+    log_message = ''
+    for pep in tqdm(peps[1:]):
+        status_main_page = find_tag(pep, 'abbr').text[1:]
+        pep_link = find_tag(pep, 'a')['href']
+        try:
+            response = get_response(session, urljoin(PEP_URL, pep_link))
+        except ConnectionError as err:
+            return ('Ошибка при загрузке страницы'
+                    f'{urljoin(PEP_URL, pep_link)}, {err}')
         soup = BeautifulSoup(response.text, 'lxml')
         status_on_page = find_tag(soup, 'abbr').text
-        if (
-            status_on_page not in EXPECTED_STATUS[status_main_page]
-        ):
-            logging.info(
-                INFO.format(urljoin(PEP_URL, pep),
-                            status_on_page,
-                            EXPECTED_STATUS[status_main_page])
-            )
+        correct_status = EXPECTED_STATUS[status_main_page]
+        if status_on_page not in correct_status:
+            log_message += INFO.format(urljoin(PEP_URL, pep_link),
+                                       status_on_page,
+                                       correct_status)
         statuses[status_on_page] += 1
     results = [('Статус', 'Количество')]
     results.extend(list(statuses.items()))
     results.append(('Total', sum(statuses.values())))
+    logging.info(log_message)
     return results
 
 
 def whats_new(session):
-    "Поиск новых статей o Python."
+    """Поиск новых статей o Python."""
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
-    response = get_response(session, whats_new_url)
-    if response is None:
-        return
+    try:
+        response = get_response(session, whats_new_url)
+    except ConnectionError as err:
+        return f'Ошибка при загрузке страницы {whats_new_url}, {err}'
     soup = BeautifulSoup(response.text, features='lxml')
 
     main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
@@ -81,9 +84,10 @@ def whats_new(session):
 
 def latest_versions(session):
     """Поиск ссылок на новую документацию Python."""
-    response = get_response(session, MAIN_DOC_URL)
-    if response is None:
-        return
+    try:
+        response = get_response(session, MAIN_DOC_URL)
+    except ConnectionError as err:
+        return f'Ошибка при загрузке страницы {MAIN_DOC_URL}, {err}'
     soup = BeautifulSoup(response.text, 'lxml')
     sidebar = find_tag(soup, 'div', {'class': 'sphinxsidebarwrapper'})
     ul_tags = sidebar.find_all('ul')
@@ -92,7 +96,7 @@ def latest_versions(session):
             a_tags = ul.find_all('a')
             break
     else:
-        raise Exception('Ничего не нашлось')
+        raise ValueError('Ничего не нашлось')
 
     results = [('Ссылка на документацию', 'Версия', 'Статус')]
     pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
@@ -113,9 +117,10 @@ def latest_versions(session):
 def download(session):
     """Загрузка документации."""
     downloads_url = urljoin(MAIN_DOC_URL, 'download.html')
-    response = get_response(session, downloads_url)
-    if response is None:
-        return
+    try:
+        response = get_response(session, downloads_url)
+    except ConnectionError as err:
+        return f'Ошибка при загрузке страницы {downloads_url}, {err}'
     soup = BeautifulSoup(response.text, 'lxml')
     main_tag = find_tag(soup, 'div', {'role': 'main'})
     table_tag = find_tag(main_tag, 'table', {'class': 'docutils'})
