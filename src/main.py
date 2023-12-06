@@ -1,10 +1,13 @@
 from collections import defaultdict
+from http import HTTPStatus
 import logging
 import re
 from urllib.parse import urljoin
+import urllib3
 
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+import requests
 import requests_cache
 
 from configs import configure_argument_parser, configure_logging
@@ -17,8 +20,12 @@ def pep(session):
     """Парсинг документации PEP."""
     try:
         response = get_response(session, PEP_URL)
-    except ConnectionError as err:
-        return f'Ошибка при загрузке страницы {PEP_URL}, {err}'
+    except urllib3.error.URLError as err:
+        logging.error(err.reason)
+    if response.status_code != HTTPStatus.OK:
+        raise requests.HTTPError(
+            f'Ошибка {response.status_code}!'
+            'Проблема с доступом к странице.')
     soup = BeautifulSoup(response.text, 'lxml')
     main_table = find_tag(soup, 'section', attrs={'id': 'numerical-index'})
     peps = main_table.find_all('tr')
@@ -29,9 +36,12 @@ def pep(session):
         pep_link = find_tag(pep, 'a')['href']
         try:
             response = get_response(session, urljoin(PEP_URL, pep_link))
-        except ConnectionError as err:
-            return ('Ошибка при загрузке страницы'
-                    f'{urljoin(PEP_URL, pep_link)}, {err}')
+        except urllib3.error.URLError as err:
+            logging.error(err.reason)
+        if response.status_code != HTTPStatus.OK:
+            raise requests.HTTPError(
+                f'Ошибка {response.status_code}!'
+                'Проблема с доступом к странице.')
         soup = BeautifulSoup(response.text, 'lxml')
         status_on_page = find_tag(soup, 'abbr').text
         correct_status = EXPECTED_STATUS[status_main_page]
@@ -52,8 +62,12 @@ def whats_new(session):
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
     try:
         response = get_response(session, whats_new_url)
-    except ConnectionError as err:
-        return f'Ошибка при загрузке страницы {whats_new_url}, {err}'
+    except urllib3.error.URLError as err:
+        logging.error(err.reason)
+    if response.status_code != HTTPStatus.OK:
+        raise requests.HTTPError(
+            f'Ошибка {response.status_code}!'
+            'Проблема с доступом к странице.')
     soup = BeautifulSoup(response.text, features='lxml')
 
     main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
@@ -86,8 +100,12 @@ def latest_versions(session):
     """Поиск ссылок на новую документацию Python."""
     try:
         response = get_response(session, MAIN_DOC_URL)
-    except ConnectionError as err:
-        return f'Ошибка при загрузке страницы {MAIN_DOC_URL}, {err}'
+    except urllib3.error.URLError as err:
+        logging.error(err.reason)
+    if response.status_code != HTTPStatus.OK:
+        raise requests.HTTPError(
+            f'Ошибка {response.status_code}!'
+            'Проблема с доступом к странице.')
     soup = BeautifulSoup(response.text, 'lxml')
     sidebar = find_tag(soup, 'div', {'class': 'sphinxsidebarwrapper'})
     ul_tags = sidebar.find_all('ul')
@@ -119,8 +137,12 @@ def download(session):
     downloads_url = urljoin(MAIN_DOC_URL, 'download.html')
     try:
         response = get_response(session, downloads_url)
-    except ConnectionError as err:
-        return f'Ошибка при загрузке страницы {downloads_url}, {err}'
+    except urllib3.error.URLError as err:
+        logging.error(err.reason)
+    if response.status_code != HTTPStatus.OK:
+        raise requests.HTTPError(
+            f'Ошибка {response.status_code}!'
+            'Проблема с доступом к странице.')
     soup = BeautifulSoup(response.text, 'lxml')
     main_tag = find_tag(soup, 'div', {'role': 'main'})
     table_tag = find_tag(main_tag, 'table', {'class': 'docutils'})
