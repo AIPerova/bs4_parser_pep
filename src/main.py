@@ -180,9 +180,13 @@ def main():
     if args.clear_cache:
         session.cache.clear()
     parser_mode = args.mode
-    results = MODE_TO_FUNCTION[parser_mode](session)
-    if results is not None:
-        control_output(results, args)
+    try:
+        results = MODE_TO_FUNCTION[parser_mode](session)
+        if results is not None:
+            control_output(results, args)
+    except Exception as err:
+        logging.error(f'Сбой в работе программы: {err}',
+                      exc_info=True)
     logging.info('Парсер завершил работу.')
 
 
